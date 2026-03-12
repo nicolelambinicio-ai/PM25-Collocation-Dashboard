@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import math
 import streamlit as st
@@ -21,10 +22,10 @@ st.markdown("""
 # -----------------------------
 # Load collocation data
 # -----------------------------
-file_path = r"C:\Users\nlambini\Desktop\Collocation Tracking Python\collocation_tracking_pm25.xlsx"
-df = pd.read_excel(file_path, sheet_name="Sheet1")
-df.columns = df.columns.astype(str).str.strip()
-df['Is This Site Collocated?'] = df['Is This Site Collocated?'].fillna('No')
+collocation_file = os.path.join(os.path.dirname(__file__), "collocation_tracking_pm25.xlsx")
+coll_df = pd.read_excel(collocation_file, sheet_name="Sheet1")  # adjust sheet name if needed
+coll_df.columns = coll_df.columns.astype(str).str.strip()
+coll_df['Is This Site Collocated?'] = coll_df['Is This Site Collocated?'].fillna('No')
 
 # -----------------------------
 # Collocation Summary
@@ -36,7 +37,7 @@ def calc_15pct(total):
     else:
         return 1
 
-summary = df.groupby('Method Type').agg(
+summary = coll_df.groupby('Method Type').agg(
     Method_Description=('Method Description', 'first'),
     Total_Sites=('Site Name', 'count'),
     Collocated_Sites=('Is This Site Collocated?', lambda x: (x=='Yes').sum())
@@ -68,13 +69,20 @@ st.subheader("Edit Total Sites to Simulate Network Changes")
 st.markdown("The table below represents the number of sites for each distinct method in CARB's PQAO.")
 
 editable_summary = summary[['Method Type', 'Total_Sites']].copy()
-edited_summary = st.data_editor(editable_summary, key="total_sites_editor", width=400)
+
+# Use experimental_data_editor if available, fallback to st.dataframe
+try:
+    edited_summary = st.experimental_data_editor(editable_summary, key="total_sites_editor", width=400)
+except AttributeError:
+    edited_summary = st.dataframe(editable_summary, width=400)
 
 if st.button("Reset"):
     st.experimental_rerun()
 
 # Update 15% requirement based on edited values
-summary['Total_Sites'] = summary['Method Type'].map(dict(zip(edited_summary['Method Type'], edited_summary['Total_Sites'])))
+summary['Total_Sites'] = summary['Method Type'].map(
+    dict(zip(edited_summary['Method Type'], edited_summary['Total_Sites']))
+)
 summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
 summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
     lambda row: pd.Series(compliance_status(row['Total_Sites'], row['Collocated_Sites'])),
@@ -84,19 +92,13 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
 # -----------------------------
 # Currently Collocated Sites
 # -----------------------------
-collocated_sites = df[df['Is This Site Collocated?'] == 'Yes']
+collocated_sites = coll_df[coll_df['Is This Site Collocated?'] == 'Yes']
 
 # -----------------------------
 # Geographic Analysis
 # -----------------------------
-dv_file = r"C:\Users\nlambini\Desktop\Collocation Tracking Python\dv_data_pm25_2025.xlsx"
-import os
-import pandas as pd
-
-# This ensures Streamlit Cloud can find the file in the repo
-file_path = os.path.join(os.path.dirname(__file__), "dv_data_pm25_2025.xlsx")
-df = pd.read_excel(file_path, sheet_name="DesignValues")
-
+dv_file = os.path.join(os.path.dirname(__file__), "dv_data_pm25_2025.xlsx")
+dv = pd.read_excel(dv_file, sheet_name="DesignValues")
 dv.columns = dv.columns.astype(str).str.strip()
 
 agency = pd.read_excel(dv_file, sheet_name="AgencyName")
@@ -125,12 +127,12 @@ tab1, tab2, tab3 = st.tabs(["Collocation Summary", "Currently Collocated Sites",
 
 with tab1:
     st.subheader("Collocation Summary Table")
-    st.dataframe(summary, width="stretch")
+    st.dataframe(summary, use_container_width=True)
 
 with tab2:
     st.subheader("Currently Collocated Sites Table")
-    st.dataframe(collocated_sites, width="stretch")
+    st.dataframe(collocated_sites, use_container_width=True)
 
 with tab3:
     st.subheader("Geographic Analysis Table")
-    st.dataframe(geo_analysis, width="stretch")
+    st.dataframe(geo_analysis, use_container_width=True)
