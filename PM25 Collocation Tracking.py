@@ -47,10 +47,11 @@ summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
 
 def compliance_status(total_sites, collocated_sites):
     required = calc_15pct(total_sites)
-    next_threshold = math.ceil(total_sites / 7)
+    # Next threshold is 1 more than current collocated that meets 15% requirement
+    next_threshold = required + 1
     if collocated_sites >= required:
         status = "Compliant"
-    elif collocated_sites >= next_threshold - 1:
+    elif collocated_sites == next_threshold - 1:
         status = "Approaching Threshold"
     else:
         status = "Not Compliant"
@@ -70,16 +71,16 @@ st.markdown("The table below represents the number of sites for each distinct me
 
 editable_summary = summary[['Method Type', 'Total_Sites']].copy()
 
-# Use experimental_data_editor if available, fallback to st.dataframe
+# Use experimental_data_editor if available, otherwise fallback to dataframe
 try:
     edited_summary = st.experimental_data_editor(editable_summary, key="total_sites_editor", width=400)
 except AttributeError:
-    edited_summary = st.dataframe(editable_summary, width=400)
+    edited_summary = st.dataframe(editable_summary, use_container_width=True)
 
 if st.button("Reset"):
     st.experimental_rerun()
 
-# Update 15% requirement based on edited values
+# Update 15% requirement and compliance based on edited values
 summary['Total_Sites'] = summary['Method Type'].map(
     dict(zip(edited_summary['Method Type'], edited_summary['Total_Sites']))
 )
@@ -118,7 +119,8 @@ dv['Possible Collocated Site'] = dv.apply(
     axis=1
 )
 
-geo_analysis = dv[['AQS ID','Local Site Name','DAILY_DESIGN_VALUE','ANNUAL_DESIGN_VALUE','Daily % Diff','Annual % Diff','In PQAO','Possible Collocated Site']]
+geo_analysis = dv[['AQS ID','Local Site Name','DAILY_DESIGN_VALUE','ANNUAL_DESIGN_VALUE',
+                   'Daily % Diff','Annual % Diff','In PQAO','Possible Collocated Site']]
 
 # -----------------------------
 # Tabs
