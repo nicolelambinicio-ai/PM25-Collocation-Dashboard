@@ -68,6 +68,7 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
 st.subheader("Edit Total Sites to Simulate Network Changes")
 
 editable_summary = summary[['Method Type', 'Method_Description', 'Total_Sites']].copy()
+summary.rename(columns={'Method_Description': 'Method Description'}, inplace=True)
 
 edited_summary = st.data_editor(
     editable_summary,
