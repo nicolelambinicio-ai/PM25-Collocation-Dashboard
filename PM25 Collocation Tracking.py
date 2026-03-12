@@ -67,25 +67,29 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
 # Interactive Total Sites Editor
 # -----------------------------
 st.subheader("Edit Total Sites to Simulate Network Changes")
-st.markdown("The table below represents the number of sites for each distinct method in CARB's PQAO.")
+st.dataframe(edited_summary, use_container_width=True)
 
 editable_summary = summary[['Method Type', 'Total_Sites']].copy()
 
-# Use the new data_editor API (returns a DataFrame)
-edited_summary = st.data_editor(editable_summary, key="total_sites_editor", width=400)
+# Use data_editor if available, otherwise fallback
+try:
+    edited_summary = st.experimental_data_editor(editable_summary, key="total_sites_editor", width=500)
+except AttributeError:
+    edited_summary = st.dataframe(editable_summary, use_container_width=True)
 
-if st.button("Reset"):
-    st.experimental_rerun()
+# Map the edited totals back to calculate updated compliance
+edited_summary['15% Requirement'] = edited_summary['Total_Sites'].apply(calc_15pct)
 
-# Update summary based on edits
-summary['Total_Sites'] = summary['Method Type'].map(
-    dict(zip(edited_summary['Method Type'], edited_summary['Total_Sites']))
-)
-summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
-summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
-    lambda row: pd.Series(compliance_status(row['Total_Sites'], row['Collocated_Sites'])),
-    axis=1
-)
+# Compute updated compliance status for each row
+def compliance_from_edited(row):
+    method = row['Method Type']
+    total_sites = row['Total_Sites']
+    # Get current collocated sites from original summary
+    collocated_sites = summary.loc[summary['Method Type']==method, 'Collocated_Sites'].values[0]
+    status, alert = compliance_status(total_sites, collocated_sites)
+    return f"{status} {alert}".strip()
+
+edited_summary['Compliance Status After Edit'] = edited_summary.apply(compliance_from_edited, axis=1)
 
 # -----------------------------
 # Currently Collocated Sites
