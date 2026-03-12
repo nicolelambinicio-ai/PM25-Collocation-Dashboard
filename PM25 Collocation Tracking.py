@@ -90,7 +90,13 @@ collocated_sites = df[df['Is This Site Collocated?'] == 'Yes']
 # Geographic Analysis
 # -----------------------------
 dv_file = r"C:\Users\nlambini\Desktop\Collocation Tracking Python\dv_data_pm25_2025.xlsx"
-dv = pd.read_excel(dv_file, sheet_name="DesignValues")
+import os
+import pandas as pd
+
+# This ensures Streamlit Cloud can find the file in the repo
+file_path = os.path.join(os.path.dirname(__file__), "dv_data_pm25_2025.xlsx")
+df = pd.read_excel(file_path, sheet_name="DesignValues")
+
 dv.columns = dv.columns.astype(str).str.strip()
 
 agency = pd.read_excel(dv_file, sheet_name="AgencyName")
