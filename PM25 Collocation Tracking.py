@@ -68,22 +68,6 @@ import pandas as pd
 import math
 
 # -----------------------------
-# Sample data
-# -----------------------------
-data = {
-    "Method Type": ["170", "143", "209"],
-    "Method Description": [
-        "BAM1020 w/ VSCC",
-        "Low Volume Sampler",
-        "Met One BAM-1022"
-    ],
-    "Total_Sites": [56, 3, 10],
-    "Collocated_Sites": [8, 1, 2]  # example values
-}
-
-summary = pd.DataFrame(data)
-
-# -----------------------------
 # Helper functions
 # -----------------------------
 def calc_15pct(total):
@@ -105,37 +89,37 @@ def compliance_status(total_sites, collocated_sites):
     return status, alert
 
 # -----------------------------
-# Streamlit UI
+# Interactive Total Sites Editor with Compliance Status
 # -----------------------------
-st.title("Interactive Total Sites Editor")
-st.markdown(
-    "Edit the `Total Sites` values below and see compliance status update live."
-)
 
-# Editable table
-editable_summary = summary[["Method Type", "Total_Sites"]].copy()
-edited_summary = st.data_editor(
-    editable_summary,
-    key="total_sites_editor",
-    use_container_width=True
-)
+st.subheader("Edit Total Sites to Simulate Network Changes")
+editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
 
-# Calculate compliance after edit
+# Show editable table (requires Streamlit >=1.24 for st.data_editor)
+try:
+    edited_summary = st.data_editor(
+        editable_summary,
+        key="total_sites_editor",
+        use_container_width=True
+    )
+except AttributeError:
+    st.warning("Your Streamlit version does not support editable tables.")
+    edited_summary = editable_summary
+    st.dataframe(edited_summary, use_container_width=True)
+
+# Calculate compliance status after edits
 def calculate_after_edit(row):
     collocated = summary.loc[summary['Method Type'] == row['Method Type'], 'Collocated_Sites'].values[0]
     status, _ = compliance_status(row['Total_Sites'], collocated)
     return status
 
-edited_summary['Compliance Status After Edit'] = edited_summary.apply(calculate_after_edit, axis=1)
+if 'edited_summary' in locals():
+    edited_summary['Compliance Status After Edit'] = edited_summary.apply(calculate_after_edit, axis=1)
 
 # Display updated table
 st.subheader("Updated Compliance Status Table")
 st.dataframe(edited_summary, use_container_width=True)
 
-# Optional: Reset button
-if st.button("Reset"):
-    st.experimental_rerun()
-    
 # -----------------------------
 # Currently Collocated Sites
 # -----------------------------
