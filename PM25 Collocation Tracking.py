@@ -45,14 +45,18 @@ summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
 
 def compliance_status(total_sites, collocated_sites):
     required = calc_15pct(total_sites)
-    next_threshold = required + 1
+    
+    # Only alert if collocated sites are less than required but close
     if collocated_sites >= required:
         status = "Compliant"
-    elif collocated_sites == next_threshold - 1:
+        alert = ""
+    elif collocated_sites == required - 1:
         status = "Approaching Threshold"
+        alert = "⚠️ Near Next Threshold"
     else:
         status = "Not Compliant"
-    alert = "⚠️ Near Next Threshold" if collocated_sites == next_threshold - 1 else ""
+        alert = ""
+    
     return status, alert
 
 summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
