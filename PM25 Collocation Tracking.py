@@ -56,6 +56,9 @@ summary = coll_df.groupby('Method Type').agg(
     Collocated_Sites=('Is This Site Collocated?', lambda x: (x=='Yes').sum())
 ).reset_index()
 
+# Rename column to have spaces if you want
+summary.rename(columns={'Method_Description': 'Method Description'}, inplace=True)
+
 summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
 summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
     lambda row: pd.Series(compliance_status(row['Total_Sites'], row['Collocated_Sites'])),
@@ -67,8 +70,8 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
 # -----------------------------
 st.subheader("Edit Total Sites to Simulate Network Changes")
 
-editable_summary = summary[['Method Type', 'Method_Description', 'Total_Sites']].copy()
-summary.rename(columns={'Method_Description': 'Method Description'}, inplace=True)
+# Use the correct column name after rename
+editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
 
 edited_summary = st.data_editor(
     editable_summary,
@@ -84,12 +87,6 @@ def calculate_after_edit(row):
 edited_summary[['Compliance Status After Edit', 'Next Threshold Alert After Edit']] = edited_summary.apply(
     calculate_after_edit, axis=1
 )
-
-st.subheader("Updated Compliance Status Table")
-st.dataframe(edited_summary, use_container_width=True)
-
-if st.button("Reset"):
-    st.experimental_rerun()
 
 # -----------------------------
 # Currently Collocated Sites
