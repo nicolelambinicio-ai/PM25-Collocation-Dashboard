@@ -64,32 +64,40 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
 )
 
 # -----------------------------
-# Interactive Total Sites Editor
+# Interactive Total Sites Editor with Compliance Status
 # -----------------------------
 st.subheader("Edit Total Sites to Simulate Network Changes")
-st.dataframe(edited_summary, use_container_width=True)
+st.markdown("Edit the 'Total Sites' column and see updated compliance status.")
 
+# Step 1: start with editable summary
 editable_summary = summary[['Method Type', 'Total_Sites']].copy()
 
-# Use data_editor if available, otherwise fallback
+# Step 2: let user edit the table
 try:
     edited_summary = st.experimental_data_editor(editable_summary, key="total_sites_editor", width=500)
 except AttributeError:
-    edited_summary = st.dataframe(editable_summary, use_container_width=True)
+    # fallback if experimental_data_editor not available
+    edited_summary = editable_summary.copy()
 
-# Map the edited totals back to calculate updated compliance
+# Step 3: calculate updated 15% requirement for edits
 edited_summary['15% Requirement'] = edited_summary['Total_Sites'].apply(calc_15pct)
 
-# Compute updated compliance status for each row
+# Step 4: calculate updated compliance status for each row
 def compliance_from_edited(row):
     method = row['Method Type']
     total_sites = row['Total_Sites']
-    # Get current collocated sites from original summary
-    collocated_sites = summary.loc[summary['Method Type']==method, 'Collocated_Sites'].values[0]
+    collocated_sites = summary.loc[summary['Method Type'] == method, 'Collocated_Sites'].values[0]
     status, alert = compliance_status(total_sites, collocated_sites)
     return f"{status} {alert}".strip()
 
 edited_summary['Compliance Status After Edit'] = edited_summary.apply(compliance_from_edited, axis=1)
+
+# Step 5: display table with updated compliance
+st.dataframe(edited_summary, use_container_width=True)
+
+# Step 6: optional reset button
+if st.button("Reset"):
+    st.experimental_rerun()
 
 # -----------------------------
 # Currently Collocated Sites
