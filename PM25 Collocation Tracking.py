@@ -23,7 +23,7 @@ st.markdown("""
 # Load collocation data
 # -----------------------------
 collocation_file = os.path.join(os.path.dirname(__file__), "collocation_tracking_pm25.xlsx")
-coll_df = pd.read_excel(collocation_file, sheet_name="Sheet1")  # adjust sheet name if needed
+coll_df = pd.read_excel(collocation_file, sheet_name="Sheet1")
 coll_df.columns = coll_df.columns.astype(str).str.strip()
 coll_df['Is This Site Collocated?'] = coll_df['Is This Site Collocated?'].fillna('No')
 
@@ -31,11 +31,9 @@ coll_df['Is This Site Collocated?'] = coll_df['Is This Site Collocated?'].fillna
 # Collocation Summary
 # -----------------------------
 def calc_15pct(total):
+    """Calculate 15% requirement. Values >= 0.5 round up, else minimum 1"""
     value = total * 0.15
-    if value >= 0.5:
-        return max(1, round(value))
-    else:
-        return 1
+    return max(1, round(value)) if value >= 0.5 else 1
 
 summary = coll_df.groupby('Method Type').agg(
     Method_Description=('Method Description', 'first'),
@@ -47,7 +45,6 @@ summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
 
 def compliance_status(total_sites, collocated_sites):
     required = calc_15pct(total_sites)
-    # Next threshold is 1 more than current collocated that meets 15% requirement
     next_threshold = required + 1
     if collocated_sites >= required:
         status = "Compliant"
@@ -71,16 +68,13 @@ st.markdown("The table below represents the number of sites for each distinct me
 
 editable_summary = summary[['Method Type', 'Total_Sites']].copy()
 
-# Use experimental_data_editor if available, otherwise fallback to dataframe
-try:
-    edited_summary = st.experimental_data_editor(editable_summary, key="total_sites_editor", width=400)
-except AttributeError:
-    edited_summary = st.dataframe(editable_summary, use_container_width=True)
+# Use the new data_editor API (returns a DataFrame)
+edited_summary = st.data_editor(editable_summary, key="total_sites_editor", width=400)
 
 if st.button("Reset"):
     st.experimental_rerun()
 
-# Update 15% requirement and compliance based on edited values
+# Update summary based on edits
 summary['Total_Sites'] = summary['Method Type'].map(
     dict(zip(edited_summary['Method Type'], edited_summary['Total_Sites']))
 )
@@ -106,10 +100,10 @@ agency = pd.read_excel(dv_file, sheet_name="AgencyName")
 agency.columns = agency.columns.astype(str).str.strip()
 
 daily_naaqs = 35
-annual_naaQs = 9
+annual_naaqs = 9
 
 dv['Daily % Diff'] = (dv['DAILY_DESIGN_VALUE'] / daily_naaqs) * 100
-dv['Annual % Diff'] = (dv['ANNUAL_DESIGN_VALUE'] / annual_naaQs) * 100
+dv['Annual % Diff'] = (dv['ANNUAL_DESIGN_VALUE'] / annual_naaqs) * 100
 
 dv = dv.merge(agency[['AQS ID','Agency_Name']], on='AQS ID', how='left')
 dv['In PQAO'] = dv['Agency_Name'].str.contains("California Air Resources Board", na=False)
