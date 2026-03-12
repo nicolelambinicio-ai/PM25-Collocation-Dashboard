@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import math
 import streamlit as st
 
 # -----------------------------
@@ -14,7 +13,7 @@ st.set_page_config(
 st.title("PM2.5 Collocation Tracking Dashboard")
 st.markdown("""
 **Instructions:**  
-- Edit the "Total Sites" table below to simulate network changes and see how the 15% collocation requirement updates.  
+- Edit the "Total Sites" table below to simulate network changes and see the 15% collocation requirement update.  
 - Click the "Reset" button to restore original values.  
 - Expand tabs to view each section.
 """)
@@ -28,55 +27,15 @@ coll_df.columns = coll_df.columns.astype(str).str.strip()
 coll_df['Is This Site Collocated?'] = coll_df['Is This Site Collocated?'].fillna('No')
 
 # -----------------------------
-# Collocation Summary
-# -----------------------------
-def calc_15pct(total):
-    """Calculate 15% requirement. Values >= 0.5 round up, else minimum 1"""
-    value = total * 0.15
-    return max(1, round(value)) if value >= 0.5 else 1
-
-summary = coll_df.groupby('Method Type').agg(
-    Method_Description=('Method Description', 'first'),
-    Total_Sites=('Site Name', 'count'),
-    Collocated_Sites=('Is This Site Collocated?', lambda x: (x=='Yes').sum())
-).reset_index()
-
-summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
-
-def compliance_status(total_sites, collocated_sites):
-    required = calc_15pct(total_sites)
-    
-    if collocated_sites >= required:
-        status = "Compliant"
-        alert = ""
-    elif collocated_sites == required - 1:
-        status = "Approaching Threshold"
-        alert = "⚠️ Near Next Threshold"
-    else:
-        status = "Not Compliant"
-        alert = ""
-    
-    return status, alert
-
-summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
-    lambda row: pd.Series(compliance_status(row['Total_Sites'], row['Collocated_Sites'])),
-    axis=1
-)
-
-import streamlit as st
-import pandas as pd
-import math
-
-# -----------------------------
 # Helper functions
 # -----------------------------
 def calc_15pct(total):
-    """Calculate 15% requirement rounded up (minimum 1)."""
+    """Calculate 15% requirement (minimum 1). Values >=0.5 round up."""
     value = total * 0.15
     return max(1, round(value)) if value >= 0.5 else 1
 
 def compliance_status(total_sites, collocated_sites):
-    """Return compliance status and alert message."""
+    """Return compliance status and next threshold alert."""
     required = calc_15pct(total_sites)
     next_threshold = required + 1
     if collocated_sites >= required:
@@ -89,36 +48,47 @@ def compliance_status(total_sites, collocated_sites):
     return status, alert
 
 # -----------------------------
-# Interactive Total Sites Editor with Compliance Status
+# Collocation Summary
 # -----------------------------
+summary = coll_df.groupby('Method Type').agg(
+    Method_Description=('Method Description', 'first'),
+    Total_Sites=('Site Name', 'count'),
+    Collocated_Sites=('Is This Site Collocated?', lambda x: (x=='Yes').sum())
+).reset_index()
 
+summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
+summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
+    lambda row: pd.Series(compliance_status(row['Total_Sites'], row['Collocated_Sites'])),
+    axis=1
+)
+
+# -----------------------------
+# Interactive Total Sites Editor
+# -----------------------------
 st.subheader("Edit Total Sites to Simulate Network Changes")
-editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
 
-# Show editable table (requires Streamlit >=1.24 for st.data_editor)
-try:
-    edited_summary = st.data_editor(
-        editable_summary,
-        key="total_sites_editor",
-        use_container_width=True
-    )
-except AttributeError:
-    st.warning("Your Streamlit version does not support editable tables.")
-    edited_summary = editable_summary
-    st.dataframe(edited_summary, use_container_width=True)
+editable_summary = summary[['Method Type', 'Method_Description', 'Total_Sites']].copy()
 
-# Calculate compliance status after edits
+edited_summary = st.data_editor(
+    editable_summary,
+    key="total_sites_editor",
+    use_container_width=True
+)
+
 def calculate_after_edit(row):
     collocated = summary.loc[summary['Method Type'] == row['Method Type'], 'Collocated_Sites'].values[0]
-    status, _ = compliance_status(row['Total_Sites'], collocated)
-    return status
+    status, alert = compliance_status(row['Total_Sites'], collocated)
+    return pd.Series([status, alert])
 
-if 'edited_summary' in locals():
-    edited_summary['Compliance Status After Edit'] = edited_summary.apply(calculate_after_edit, axis=1)
+edited_summary[['Compliance Status After Edit', 'Next Threshold Alert After Edit']] = edited_summary.apply(
+    calculate_after_edit, axis=1
+)
 
-# Display updated table
 st.subheader("Updated Compliance Status Table")
 st.dataframe(edited_summary, use_container_width=True)
+
+if st.button("Reset"):
+    st.experimental_rerun()
 
 # -----------------------------
 # Currently Collocated Sites
@@ -155,7 +125,12 @@ geo_analysis = dv[['AQS ID','Local Site Name','DAILY_DESIGN_VALUE','ANNUAL_DESIG
 # -----------------------------
 # Tabs
 # -----------------------------
-tab1, tab2, tab3 = st.tabs(["Collocation Summary", "Currently Collocated Sites", "Geographic Analysis"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "Collocation Summary",
+    "Currently Collocated Sites",
+    "Geographic Analysis",
+    "Interactive Total Sites Editor"
+])
 
 with tab1:
     st.subheader("Collocation Summary Table")
@@ -168,3 +143,7 @@ with tab2:
 with tab3:
     st.subheader("Geographic Analysis Table")
     st.dataframe(geo_analysis, use_container_width=True)
+
+with tab4:
+    st.subheader("Interactive Total Sites Editor")
+    st.dataframe(edited_summary, use_container_width=True)
