@@ -72,14 +72,19 @@ st.markdown("Edit the 'Total Sites' column and see updated compliance status.")
 # Step 1: start with editable summary
 editable_summary = summary[['Method Type', 'Total_Sites']].copy()
 
-# Step 2: let user edit the table
+# Step 2: use experimental_data_editor if available
 try:
-    edited_summary = st.experimental_data_editor(editable_summary, key="total_sites_editor", width=500)
+    edited_summary = st.experimental_data_editor(
+        editable_summary,
+        key="total_sites_editor",
+        num_rows="dynamic",       # allows adding/removing rows if needed
+        use_container_width=True
+    )
 except AttributeError:
-    # fallback if experimental_data_editor not available
+    st.warning("Your Streamlit version does not support editable tables.")
     edited_summary = editable_summary.copy()
 
-# Step 3: calculate updated 15% requirement for edits
+# Step 3: calculate updated 15% requirement
 edited_summary['15% Requirement'] = edited_summary['Total_Sites'].apply(calc_15pct)
 
 # Step 4: calculate updated compliance status for each row
@@ -92,8 +97,8 @@ def compliance_from_edited(row):
 
 edited_summary['Compliance Status After Edit'] = edited_summary.apply(compliance_from_edited, axis=1)
 
-# Step 5: display table with updated compliance
-st.dataframe(edited_summary, use_container_width=True)
+# Step 5: display the editable table (users can now edit Total Sites)
+st.experimental_data_editor(edited_summary, key="edited_summary_display", use_container_width=True)
 
 # Step 6: optional reset button
 if st.button("Reset"):
