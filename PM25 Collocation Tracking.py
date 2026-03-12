@@ -46,7 +46,6 @@ summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
 def compliance_status(total_sites, collocated_sites):
     required = calc_15pct(total_sites)
     
-    # Only alert if collocated sites are less than required but close
     if collocated_sites >= required:
         status = "Compliant"
         alert = ""
