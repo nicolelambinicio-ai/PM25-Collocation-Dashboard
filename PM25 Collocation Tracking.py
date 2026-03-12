@@ -63,47 +63,79 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
     axis=1
 )
 
+import streamlit as st
+import pandas as pd
+import math
+
 # -----------------------------
-# Interactive Total Sites Editor with Compliance Status
+# Sample data
 # -----------------------------
-st.subheader("Edit Total Sites to Simulate Network Changes")
-st.markdown("Edit the 'Total Sites' column and see updated compliance status.")
+data = {
+    "Method Type": ["170", "143", "209"],
+    "Method Description": [
+        "BAM1020 w/ VSCC",
+        "Low Volume Sampler",
+        "Met One BAM-1022"
+    ],
+    "Total_Sites": [56, 3, 10],
+    "Collocated_Sites": [8, 1, 2]  # example values
+}
 
-# Step 1: start with editable summary
-editable_summary = summary[['Method Type', 'Total_Sites']].copy()
+summary = pd.DataFrame(data)
 
-# Step 2: use experimental_data_editor if available
-try:
-    edited_summary = st.experimental_data_editor(
-        editable_summary,
-        key="total_sites_editor",
-        num_rows="dynamic",       # allows adding/removing rows if needed
-        use_container_width=True
-    )
-except AttributeError:
-    st.warning("Your Streamlit version does not support editable tables.")
-    edited_summary = editable_summary.copy()
+# -----------------------------
+# Helper functions
+# -----------------------------
+def calc_15pct(total):
+    """Calculate 15% requirement rounded up (minimum 1)."""
+    value = total * 0.15
+    return max(1, round(value)) if value >= 0.5 else 1
 
-# Step 3: calculate updated 15% requirement
-edited_summary['15% Requirement'] = edited_summary['Total_Sites'].apply(calc_15pct)
+def compliance_status(total_sites, collocated_sites):
+    """Return compliance status and alert message."""
+    required = calc_15pct(total_sites)
+    next_threshold = required + 1
+    if collocated_sites >= required:
+        status = "Compliant"
+    elif collocated_sites == next_threshold - 1:
+        status = "Approaching Threshold"
+    else:
+        status = "Not Compliant"
+    alert = "⚠️ Near Next Threshold" if collocated_sites == next_threshold - 1 else ""
+    return status, alert
 
-# Step 4: calculate updated compliance status for each row
-def compliance_from_edited(row):
-    method = row['Method Type']
-    total_sites = row['Total_Sites']
-    collocated_sites = summary.loc[summary['Method Type'] == method, 'Collocated_Sites'].values[0]
-    status, alert = compliance_status(total_sites, collocated_sites)
-    return f"{status} {alert}".strip()
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.title("Interactive Total Sites Editor")
+st.markdown(
+    "Edit the `Total Sites` values below and see compliance status update live."
+)
 
-edited_summary['Compliance Status After Edit'] = edited_summary.apply(compliance_from_edited, axis=1)
+# Editable table
+editable_summary = summary[["Method Type", "Total_Sites"]].copy()
+edited_summary = st.data_editor(
+    editable_summary,
+    key="total_sites_editor",
+    use_container_width=True
+)
 
-# Step 5: display the editable table (users can now edit Total Sites)
-st.experimental_data_editor(edited_summary, key="edited_summary_display", use_container_width=True)
+# Calculate compliance after edit
+def calculate_after_edit(row):
+    collocated = summary.loc[summary['Method Type'] == row['Method Type'], 'Collocated_Sites'].values[0]
+    status, _ = compliance_status(row['Total_Sites'], collocated)
+    return status
 
-# Step 6: optional reset button
+edited_summary['Compliance Status After Edit'] = edited_summary.apply(calculate_after_edit, axis=1)
+
+# Display updated table
+st.subheader("Updated Compliance Status Table")
+st.dataframe(edited_summary, use_container_width=True)
+
+# Optional: Reset button
 if st.button("Reset"):
     st.experimental_rerun()
-
+    
 # -----------------------------
 # Currently Collocated Sites
 # -----------------------------
