@@ -35,16 +35,26 @@ def calc_15pct(total):
     return max(1, round(value)) if value >= 0.5 else 1
 
 def compliance_status(total_sites, collocated_sites):
-    """Return compliance status and next threshold alert."""
+    """
+    Calculate 15% compliance and next threshold alert.
+    - total_sites: number of primary monitors of this method
+    - collocated_sites: number of collocated monitors
+    """
     required = calc_15pct(total_sites)
-    next_threshold = required + 1
+    
+    # next threshold is basically the number needed for one more collocated monitor
+    next_threshold = required + 1  # next integer requirement
+
     if collocated_sites >= required:
         status = "Compliant"
-    elif collocated_sites == next_threshold - 1:
+        alert = ""
+    elif collocated_sites == required - 1:
         status = "Approaching Threshold"
+        alert = "⚠️ Near Next Threshold"
     else:
         status = "Not Compliant"
-    alert = "⚠️ Near Next Threshold" if collocated_sites == next_threshold - 1 else ""
+        alert = ""
+    
     return status, alert
 
 # -----------------------------
@@ -56,10 +66,37 @@ summary = coll_df.groupby('Method Type').agg(
     Collocated_Sites=('Is This Site Collocated?', lambda x: (x=='Yes').sum())
 ).reset_index()
 
-# Rename column to have spaces if you want
+# Rename for readability
 summary.rename(columns={'Method_Description': 'Method Description'}, inplace=True)
 
-summary['15% Requirement'] = summary['Total_Sites'].apply(calc_15pct)
+# Helper functions
+def calc_15pct(total):
+    """Calculate 15% requirement (minimum 1). Values >=0.5 round up."""
+    value = total * 0.15
+    return max(1, round(value)) if value >= 0.5 else 1
+
+def compliance_status(total_sites, collocated_sites):
+    """
+    Calculate compliance and next threshold alert:
+    - 'Compliant' if collocated >= 15% of total
+    - 'Approaching Threshold' if 1 away from 15% requirement
+    - 'Not Compliant' otherwise
+    """
+    required = calc_15pct(total_sites)
+
+    if collocated_sites >= required:
+        status = "Compliant"
+        alert = ""
+    elif collocated_sites == required - 1:
+        status = "Approaching Threshold"
+        alert = "⚠️ Near Next Threshold"
+    else:
+        status = "Not Compliant"
+        alert = ""
+
+    return status, alert
+
+# Apply compliance calculation
 summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
     lambda row: pd.Series(compliance_status(row['Total_Sites'], row['Collocated_Sites'])),
     axis=1
@@ -70,7 +107,6 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
 # -----------------------------
 st.subheader("Edit Total Sites to Simulate Network Changes")
 
-# Use the correct column name after rename
 editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
 
 edited_summary = st.data_editor(
@@ -87,6 +123,12 @@ def calculate_after_edit(row):
 edited_summary[['Compliance Status After Edit', 'Next Threshold Alert After Edit']] = edited_summary.apply(
     calculate_after_edit, axis=1
 )
+
+st.subheader("Updated Compliance Status Table")
+st.dataframe(edited_summary, use_container_width=True)
+
+if st.button("Reset"):
+    st.experimental_rerun()
 
 # -----------------------------
 # Currently Collocated Sites
@@ -123,7 +165,7 @@ geo_analysis = dv[['AQS ID','Local Site Name','DAILY_DESIGN_VALUE','ANNUAL_DESIG
 # -----------------------------
 # Tabs
 # -----------------------------
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "Collocation Summary",
     "Currently Collocated Sites",
     "Geographic Analysis",
@@ -141,7 +183,3 @@ with tab2:
 with tab3:
     st.subheader("Geographic Analysis Table")
     st.dataframe(geo_analysis, use_container_width=True)
-
-with tab4:
-    st.subheader("Interactive Total Sites Editor")
-    st.dataframe(edited_summary, use_container_width=True)
