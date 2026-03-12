@@ -1,5 +1,6 @@
+python==3.12
+streamlit>=1.25
 pandas
-streamlit
 openpyxl
-altair==4.2.0
+altair<5
 pillow
