@@ -120,7 +120,7 @@ daily_naaqs = 35
 annual_naaqs = 9
 
 # Merge to get Agency Name
-dv = dv.merge(agency[['AQS_ID', 'Agency_Name']], left_on='AQS ID', right_on='AQS_ID', how='left')
+dv = dv.merge(agency[['AQS ID', 'Agency_Name']], left_on='AQS ID', right_on='AQS ID', how='left')
 
 # Merge to get PQAO for that agency
 dv = dv.merge(agency_pqao[['Agency', 'PQAO']], left_on='Agency_Name', right_on='Agency', how='left')
