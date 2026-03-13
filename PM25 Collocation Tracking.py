@@ -119,9 +119,9 @@ agency_pqao.columns = agency_pqao.columns.astype(str).str.strip()
 daily_naaqs = 35
 annual_naaqs = 9
 
-# Calculate percent differences
-dv['Daily % Diff'] = (dv['DAILY_DESIGN_VALUE'] / daily_naaqs) * 100
-dv['Annual % Diff'] = (dv['ANNUAL_DESIGN_VALUE'] / annual_naaqs) * 100
+# Calculate percent differences relative to NAAQS
+dv['Daily % Diff'] = ((dv['DAILY_DESIGN_VALUE'] / daily_naaqs) - 1) * 100
+dv['Annual % Diff'] = ((dv['ANNUAL_DESIGN_VALUE'] / annual_naaqs) - 1) * 100
 
 # Merge to assign agency name to each AQS ID
 dv = dv.merge(
