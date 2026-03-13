@@ -14,7 +14,7 @@ st.title("PM2.5 Collocation Tracking Dashboard")
 st.markdown("""
 **Instructions:**  
 - Edit the "Total Sites" table below to simulate network changes and see the 15% collocation requirement update.  
-- Click the "Reset" button to restore original values.  
+- Click the "Reset Network Simulation" button to restore original values.  
 - Tabs below show static tables only.
 """)
 
@@ -30,27 +30,17 @@ coll_df['Is This Site Collocated?'] = coll_df['Is This Site Collocated?'].fillna
 # Helper functions
 # -----------------------------
 def calc_15pct(total):
-    """Calculate 15% requirement (minimum 1). Values >=0.5 round up."""
     value = total * 0.15
     return max(1, round(value)) if value >= 0.5 else 1
 
 def compliance_status(total_sites, collocated_sites):
-    """
-    Calculate compliance and next threshold alert:
-    - 'Compliant' if collocated >= 15% of total
-    - 'Approaching Threshold' if 1 away from 15% requirement
-    - 'Not Compliant' otherwise
-    """
     required = calc_15pct(total_sites)
     if collocated_sites >= required:
-        status = "Compliant"
-        alert = ""
+        status, alert = "Compliant", ""
     elif collocated_sites == required - 1:
-        status = "Approaching Threshold"
-        alert = "⚠️ Near Next Threshold"
+        status, alert = "Approaching Threshold", "⚠️ Near Next Threshold"
     else:
-        status = "Not Compliant"
-        alert = ""
+        status, alert = "Not Compliant", ""
     return status, alert
 
 # -----------------------------
@@ -64,42 +54,44 @@ summary = coll_df.groupby('Method Type').agg(
 
 summary.rename(columns={'Method_Description': 'Method Description'}, inplace=True)
 
-# Apply compliance calculation
 summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
     lambda row: pd.Series(compliance_status(row['Total_Sites'], row['Collocated_Sites'])),
     axis=1
 )
 
 # -----------------------------
-# Interactive Total Sites Editor (outside tabs)
+# Interactive Total Sites Editor
 # -----------------------------
-with st.container():
-    st.markdown("## Network Simulation: Adjust Total Sites by Method")
-    st.markdown("Modify the total number of monitoring sites to see how the 15% collocation requirement changes.")
-    st.divider()
+st.markdown("## Network Simulation: Adjust Total Sites by Method")
+st.markdown("Modify the total number of monitoring sites to see how the 15% collocation requirement changes.")
+st.markdown("---")
 
-    editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
-    edited_summary = st.data_editor(
-        editable_summary,
-        key="total_sites_editor",
-        width='stretch'
-    )
+# Initialize session state
+if "editable_summary" not in st.session_state:
+    st.session_state.editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
 
-    def calculate_after_edit(row):
-        collocated = summary.loc[summary['Method Type'] == row['Method Type'], 'Collocated_Sites'].values[0]
-        status, alert = compliance_status(row['Total_Sites'], collocated)
-        return pd.Series([status, alert])
+def calculate_after_edit(row):
+    collocated = summary.loc[summary['Method Type'] == row['Method Type'], 'Collocated_Sites'].values[0]
+    status, alert = compliance_status(row['Total_Sites'], collocated)
+    return pd.Series([status, alert])
 
-    edited_summary[['Compliance Status After Edit', 'Next Threshold Alert After Edit']] = edited_summary.apply(
-        calculate_after_edit, axis=1
-    )
+edited_summary = st.data_editor(
+    st.session_state.editable_summary,
+    key="total_sites_editor",
+    width='stretch'
+)
 
-    st.markdown("### Updated Compliance Status Table")
-    st.dataframe(edited_summary, width='stretch')
+edited_summary[['Compliance Status After Edit', 'Next Threshold Alert After Edit']] = edited_summary.apply(
+    calculate_after_edit, axis=1
+)
 
-    # Reset button
-    if st.button("Reset Network Simulation"):
-        st.rerun()
+st.markdown("### Updated Compliance Status Table")
+st.dataframe(edited_summary, width='stretch')
+
+# Reset interactive table
+if st.button("Reset Network Simulation"):
+    st.session_state.editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
+    st.experimental_rerun()
 
 # -----------------------------
 # Currently Collocated Sites
@@ -110,28 +102,49 @@ collocated_sites = coll_df[coll_df['Is This Site Collocated?'] == 'Yes']
 # Geographic Analysis
 # -----------------------------
 dv_file = os.path.join(os.path.dirname(__file__), "dv_data_pm25_2025.xlsx")
+
+# Load Design Values
 dv = pd.read_excel(dv_file, sheet_name="DesignValues")
 dv.columns = dv.columns.astype(str).str.strip()
 
+# Load agency mapping
 agency = pd.read_excel(dv_file, sheet_name="AgencyName")
 agency.columns = agency.columns.astype(str).str.strip()
+
+# Load PQAO assignment
+agency_pqao = pd.read_excel(dv_file, sheet_name="AgencyPQAO")
+agency_pqao.columns = agency_pqao.columns.astype(str).str.strip()
 
 daily_naaqs = 35
 annual_naaqs = 9
 
+# Compute % difference
 dv['Daily % Diff'] = (dv['DAILY_DESIGN_VALUE'] / daily_naaqs) * 100
 dv['Annual % Diff'] = (dv['ANNUAL_DESIGN_VALUE'] / annual_naaqs) * 100
 
-dv = dv.merge(agency[['AQS ID','Agency_Name']], on='AQS ID', how='left')
-dv['In PQAO'] = dv['Agency_Name'].str.contains("California Air Resources Board", na=False)
+# Merge to get Agency Name
+dv = dv.merge(agency[['AQS_ID','Agency_Name']], left_on='AQS ID', right_on='AQS_ID', how='left')
 
-dv['Possible Collocated Site'] = dv.apply(
-    lambda x: "Yes" if x['In PQAO'] and (x['Daily % Diff'] <= 120 or x['Annual % Diff'] <= 120) else "No",
+# Merge to get PQAO for that agency
+dv = dv.merge(agency_pqao, left_on='Agency_Name', right_on='Agency', how='left')
+
+# Determine daily/annual within 20%
+dv['Daily Within 20%'] = dv['DAILY_DESIGN_VALUE'].apply(lambda x: 'Yes' if x <= daily_naaqs * 1.2 else 'No')
+dv['Annual Within 20%'] = dv['ANNUAL_DESIGN_VALUE'].apply(lambda x: 'Yes' if x <= annual_naaqs * 1.2 else 'No')
+
+# Determine if site is CARB
+dv['In CARB PQAO'] = dv['PQAO'].apply(lambda x: 'Yes' if str(x).upper() == 'CARB' else 'No')
+
+# Possible Geographic Site: within 20% AND in CARB
+dv['Possible Geographic Site'] = dv.apply(
+    lambda row: 'Yes' if (row['Daily Within 20%'] == 'Yes' or row['Annual Within 20%'] == 'Yes') and row['In CARB PQAO'] == 'Yes' else 'No',
     axis=1
 )
 
+# Columns to display
 geo_analysis = dv[['AQS ID','Local Site Name','DAILY_DESIGN_VALUE','ANNUAL_DESIGN_VALUE',
-                   'Daily % Diff','Annual % Diff','In PQAO','Possible Collocated Site']]
+                   'Daily % Diff','Annual % Diff','Daily Within 20%','Annual Within 20%',
+                   'Agency_Name','PQAO','In CARB PQAO','Possible Geographic Site']]
 
 # -----------------------------
 # Tabs for static tables only
