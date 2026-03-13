@@ -103,49 +103,59 @@ collocated_sites = coll_df[coll_df['Is This Site Collocated?'] == 'Yes']
 # -----------------------------
 dv_file = os.path.join(os.path.dirname(__file__), "dv_data_pm25_2025.xlsx")
 
-# Load Design Values
+# Read DesignValues
 dv = pd.read_excel(dv_file, sheet_name="DesignValues")
 dv.columns = dv.columns.astype(str).str.strip()
 
-# Load agency mapping
+# Read AgencyName to assign agency to AQS ID
 agency = pd.read_excel(dv_file, sheet_name="AgencyName")
-agency.columns = agency.columns.astype(str).str.strip()
+agency.columns = agency.columns.astype(str).str.strip()  # ensure clean names
 
-# Load PQAO assignment
+# Read AgencyPQAO to check if agency is in CARB's PQAO
 agency_pqao = pd.read_excel(dv_file, sheet_name="AgencyPQAO")
 agency_pqao.columns = agency_pqao.columns.astype(str).str.strip()
 
+# NAAQS values
 daily_naaqs = 35
 annual_naaqs = 9
 
-# Compute % difference
+# Calculate percent differences
 dv['Daily % Diff'] = (dv['DAILY_DESIGN_VALUE'] / daily_naaqs) * 100
 dv['Annual % Diff'] = (dv['ANNUAL_DESIGN_VALUE'] / annual_naaqs) * 100
 
-# Merge to get Agency Name
-dv = dv.merge(agency[['AQS_ID','Agency_Name']], left_on='AQS ID', right_on='AQS_ID', how='left')
+# Merge to assign agency name to each AQS ID
+dv = dv.merge(
+    agency[['AQS ID', 'Agency_Name']],
+    left_on='AQS ID',
+    right_on='AQS ID',
+    how='left'
+)
 
-# Merge to get PQAO for that agency
-dv = dv.merge(agency_pqao, left_on='Agency_Name', right_on='Agency', how='left')
+# Merge to get PQAO info for that agency
+dv = dv.merge(
+    agency_pqao[['Agency', 'PQAO']],
+    left_on='Agency_Name',
+    right_on='Agency',
+    how='left'
+)
 
-# Determine daily/annual within 20%
-dv['Daily Within 20%'] = dv['DAILY_DESIGN_VALUE'].apply(lambda x: 'Yes' if x <= daily_naaqs * 1.2 else 'No')
-dv['Annual Within 20%'] = dv['ANNUAL_DESIGN_VALUE'].apply(lambda x: 'Yes' if x <= annual_naaqs * 1.2 else 'No')
-
-# Determine if site is CARB
+# Identify if site is in CARB PQAO
 dv['In CARB PQAO'] = dv['PQAO'].apply(lambda x: 'Yes' if str(x).upper() == 'CARB' else 'No')
 
-# Possible Geographic Site: within 20% AND in CARB
+# Determine if within 20% of NAAQS
+dv['Daily Within 20%'] = dv['Daily % Diff'].apply(lambda x: 'Yes' if 80 <= x <= 120 else 'No')
+dv['Annual Within 20%'] = dv['Annual % Diff'].apply(lambda x: 'Yes' if 80 <= x <= 120 else 'No')
+
+# Possible geographic site: CARB and within 20% of either daily or annual
 dv['Possible Geographic Site'] = dv.apply(
-    lambda row: 'Yes' if (row['Daily Within 20%'] == 'Yes' or row['Annual Within 20%'] == 'Yes') and row['In CARB PQAO'] == 'Yes' else 'No',
+    lambda x: 'Yes' if (x['In CARB PQAO'] == 'Yes') and (x['Daily Within 20%'] == 'Yes' or x['Annual Within 20%'] == 'Yes') else 'No',
     axis=1
 )
 
-# Columns to display
+# Select columns to display
 geo_analysis = dv[['AQS ID','Local Site Name','DAILY_DESIGN_VALUE','ANNUAL_DESIGN_VALUE',
                    'Daily % Diff','Annual % Diff','Daily Within 20%','Annual Within 20%',
-                   'Agency_Name','PQAO','In CARB PQAO','Possible Geographic Site']]
-
+                   'Agency_Name','In CARB PQAO','Possible Geographic Site']]
 # -----------------------------
 # Tabs for static tables only
 # -----------------------------
