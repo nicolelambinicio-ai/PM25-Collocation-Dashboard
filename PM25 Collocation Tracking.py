@@ -15,7 +15,7 @@ st.markdown("""
 **Instructions:**  
 - Edit the "Total Sites" table below to simulate network changes and see the 15% collocation requirement update.  
 - Click the "Reset" button to restore original values.  
-- Tabs show static tables only.
+- Tabs below show static tables only.
 """)
 
 # -----------------------------
@@ -42,7 +42,6 @@ def compliance_status(total_sites, collocated_sites):
     - 'Not Compliant' otherwise
     """
     required = calc_15pct(total_sites)
-
     if collocated_sites >= required:
         status = "Compliant"
         alert = ""
@@ -52,7 +51,6 @@ def compliance_status(total_sites, collocated_sites):
     else:
         status = "Not Compliant"
         alert = ""
-    
     return status, alert
 
 # -----------------------------
@@ -64,7 +62,6 @@ summary = coll_df.groupby('Method Type').agg(
     Collocated_Sites=('Is This Site Collocated?', lambda x: (x=='Yes').sum())
 ).reset_index()
 
-# Rename for readability
 summary.rename(columns={'Method_Description': 'Method Description'}, inplace=True)
 
 # Apply compliance calculation
@@ -76,28 +73,33 @@ summary[['Compliance Status', 'Next Threshold Alert']] = summary.apply(
 # -----------------------------
 # Interactive Total Sites Editor (outside tabs)
 # -----------------------------
-editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
+with st.container():
+    st.markdown("## Network Simulation: Adjust Total Sites by Method")
+    st.markdown("Modify the total number of monitoring sites to see how the 15% collocation requirement changes.")
+    st.divider()
 
-edited_summary = st.data_editor(
-    editable_summary,
-    key="total_sites_editor",
-    width='stretch'
-)
+    editable_summary = summary[['Method Type', 'Method Description', 'Total_Sites']].copy()
+    edited_summary = st.data_editor(
+        editable_summary,
+        key="total_sites_editor",
+        width='stretch'
+    )
 
-def calculate_after_edit(row):
-    collocated = summary.loc[summary['Method Type'] == row['Method Type'], 'Collocated_Sites'].values[0]
-    status, alert = compliance_status(row['Total_Sites'], collocated)
-    return pd.Series([status, alert])
+    def calculate_after_edit(row):
+        collocated = summary.loc[summary['Method Type'] == row['Method Type'], 'Collocated_Sites'].values[0]
+        status, alert = compliance_status(row['Total_Sites'], collocated)
+        return pd.Series([status, alert])
 
-edited_summary[['Compliance Status After Edit', 'Next Threshold Alert After Edit']] = edited_summary.apply(
-    calculate_after_edit, axis=1
-)
+    edited_summary[['Compliance Status After Edit', 'Next Threshold Alert After Edit']] = edited_summary.apply(
+        calculate_after_edit, axis=1
+    )
 
-st.subheader("Updated Compliance Status Table")
-st.dataframe(edited_summary, width='stretch')
+    st.markdown("### Updated Compliance Status Table")
+    st.dataframe(edited_summary, width='stretch')
 
-if st.button("Reset"):
-    st.experimental_rerun()
+    # Reset button
+    if st.button("Reset Network Simulation"):
+        st.rerun()
 
 # -----------------------------
 # Currently Collocated Sites
