@@ -119,9 +119,9 @@ agency_pqao.columns = agency_pqao.columns.astype(str).str.strip()
 daily_naaqs = 35
 annual_naaqs = 9
 
-# Calculate percent differences relative to NAAQS
-dv['Daily % Diff'] = ((dv['DAILY_DESIGN_VALUE'] / daily_naaqs) - 1) * 100
-dv['Annual % Diff'] = ((dv['ANNUAL_DESIGN_VALUE'] / annual_naaqs) - 1) * 100
+# Calculate percent differences
+dv['Daily % Diff'] = (dv['DAILY_DESIGN_VALUE'] / daily_naaqs) * 100
+dv['Annual % Diff'] = (dv['ANNUAL_DESIGN_VALUE'] / annual_naaqs) * 100
 
 # Merge to assign agency name to each AQS ID
 dv = dv.merge(
@@ -156,6 +156,7 @@ dv['Possible Geographic Site'] = dv.apply(
 geo_analysis = dv[['AQS ID','Local Site Name','DAILY_DESIGN_VALUE','ANNUAL_DESIGN_VALUE',
                    'Daily % Diff','Annual % Diff','Daily Within 20%','Annual Within 20%',
                    'Agency_Name','In CARB PQAO','Possible Geographic Site']]
+
 # -----------------------------
 # Tabs for static tables only
 # -----------------------------
